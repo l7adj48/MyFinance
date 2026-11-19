@@ -19,7 +19,10 @@ const positiveInt = (n, label="amount") => {
   return n;
 };
 const date = value => {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value+"T00:00:00Z"))) throw new TypeError("occurredAt must be YYYY-MM-DD");
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) throw new TypeError("occurredAt must be YYYY-MM-DD");
+  const [y,m,d]=value.split("-").map(Number);
+  const check=new Date(Date.UTC(y,m-1,d));
+  if(check.getUTCFullYear()!==y||check.getUTCMonth()!==m-1||check.getUTCDate()!==d) throw new TypeError("occurredAt must be a real calendar date");
   return value;
 };
 const entry = (account,debit=0,credit=0) => ({account,debit,credit});
