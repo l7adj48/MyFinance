@@ -16,10 +16,10 @@ async function initializeFinance(){
  if(!marker){
   const raw=localStorage.getItem(KEY),legacy=raw?JSON.parse(raw):null;
   if(legacy&&Array.isArray(legacy.transactions)&&legacy.transactions.length){
+   localStorage.setItem("myfinance.legacy-backup.v1",raw);
    const converted=migrateLegacyState(legacy);
    if(!converted.cashComparable){toast("توجد بيانات قديمة غير متطابقة؛ احتُفظ بها دون ترحيل تلقائي. راجع النسخة الاحتياطية.");}
    else{
-    localStorage.setItem("myfinance.legacy-backup.v1",raw);
     await importAtomically(financeDB,converted.transactions,{completedAt:new Date().toISOString(),count:converted.transactions.length,legacyCash:converted.legacyCash});
    }
   }else await importAtomically(financeDB,[],{completedAt:new Date().toISOString(),count:0});
