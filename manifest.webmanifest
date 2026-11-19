@@ -1,0 +1,11 @@
+{
+  "name": "ميزانيتي",
+  "short_name": "ميزانيتي",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d100d",
+  "theme_color": "#10130f",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}

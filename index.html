@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10130f"><meta name="description" content="ميزانيتي - إدارة الأموال والمشتريات">
+<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
+<title>ميزانيتي</title>
+</head>
+<body>
+<header class="topbar">
+ <div class="brand"><div class="brandmark">م</div><div><b>ميزانيتي</b><small>إدارة أموالك بهدوء</small></div></div>
+ <button class="icon-btn" id="themeBtn" aria-label="تبديل المظهر">◐</button>
+</header>
+<main id="app">
+<section class="view active" id="homeView">
+ <div class="greeting"><div><small id="today"></small><h1>ملخصك المالي</h1></div><span class="live-dot"></span></div>
+ <article class="balance-card">
+  <div class="muted">الرصيد النقدي</div><div class="balance" id="cashBalance">0 <small>دج</small></div>
+  <div class="balance-foot"><span>المتاح للإنفاق</span><b id="available">0 دج</b></div>
+ </article>
+ <div class="metric-grid">
+  <article class="metric"><span>الدخل</span><b class="positive" id="incomeTotal">0 دج</b><small>هذا الشهر</small></article>
+  <article class="metric"><span>المصروفات</span><b class="negative" id="expenseTotal">0 دج</b><small>هذا الشهر</small></article>
+ </div>
+ <div class="section-head"><h2>آخر الحركات</h2><button class="text-btn" data-go="activity">عرض الكل</button></div>
+ <div id="recentList" class="list-card empty">لا توجد حركات بعد</div>
+</section>
+
+<section class="view" id="purchasesView">
+ <div class="page-heading"><small>التسجيل اليومي</small><h1>المشتريات</h1><p>اختر الفئة ثم أضف المنتجات. الإجمالي يتحدث تلقائياً.</p></div>
+ <div class="category-grid" id="categoryGrid"></div>
+ <article class="panel purchase-panel">
+  <div class="section-head"><h2 id="purchaseTitle">إضافة مشتريات</h2><span class="subtle">فاتورة واحدة</span></div>
+  <div class="field"><label for="productName">اسم المنتج</label><input id="productName" list="productHints" placeholder="مثال: طماطم"><datalist id="productHints"></datalist></div>
+  <div class="input-row">
+   <div class="field"><label for="quantity">الكمية</label><input id="quantity" type="number" min="0.001" step="any" value="1" inputmode="decimal"></div>
+   <div class="field"><label for="unitPrice">سعر الوحدة (دج)</label><input id="unitPrice" type="number" min="0" step="1" placeholder="0" inputmode="numeric"></div>
+  </div>
+  <div class="line-total"><span>مجموع المنتج</span><b id="lineTotal">0 دج</b></div>
+  <button class="secondary-btn" id="addLine">＋ إضافة إلى الفاتورة</button>
+  <div class="invoice-head"><h3>عناصر الفاتورة</h3><span id="lineCount">0 منتجات</span></div>
+  <div id="invoiceLines" class="invoice-lines empty">لم تضف منتجات بعد</div>
+  <div class="total-box"><div><span>إجمالي الفاتورة</span><small id="invoiceMeta">0 منتجات</small></div><strong id="invoiceTotal">0 دج</strong></div>
+  <button class="primary-btn" id="confirmPurchase" disabled>تأكيد الفاتورة</button>
+  <p class="hint">لن يتغير رصيدك قبل تأكيد الفاتورة. بعد التأكيد تُسجّل كعملية مصروف واحدة مع تفاصيل المنتجات.</p>
+ </article>
+ <div class="section-head"><h2>مشتريات حديثة</h2></div><div id="purchaseHistory" class="list-card empty">لا توجد مشتريات مسجلة</div>
+</section>
+
+<section class="view" id="activityView">
+ <div class="page-heading"><small>السجل المالي</small><h1>الحركات</h1><p>كل حركة مالية مؤكدة تظهر هنا.</p></div>
+ <div id="activityList" class="list-card empty">لا توجد حركات بعد</div>
+</section>
+
+<section class="view" id="budgetView">
+ <div class="page-heading"><small>خطة الراتب</small><h1>تخصيص الدخل</h1><p>التخصيص خطة تنظيمية ولا يخصم من رصيدك.</p></div>
+ <article class="panel">
+  <div class="field"><label for="salary">الدخل الشهري المتوقع (دج)</label><input id="salary" type="number" min="0" step="1" placeholder="أدخل مبلغ الدخل"></div>
+  <div class="field"><label for="payday">يوم استلام الدخل</label><input id="payday" type="number" min="1" max="31" value="18"></div>
+  <button class="secondary-btn" id="saveIncome">حفظ إعداد الدخل</button>
+ </article>
+ <div class="section-head"><h2>توزيع المبلغ</h2><button class="text-btn" id="addBudget">＋ فئة</button></div>
+ <div id="budgetList" class="budget-list"></div>
+ <article class="total-box"><div><span>إجمالي التخصيص</span><small>من الدخل المتوقع</small></div><strong id="allocatedTotal">0 دج</strong></article>
+</section>
+
+<section class="view" id="productsView">
+ <div class="page-heading"><small>دليل الأسعار</small><h1>المنتجات والأسعار</h1><p>احتفظ بآخر الأسعار وسجل تغيرها.</p></div>
+ <article class="panel">
+  <div class="field"><label for="catalogName">اسم المنتج</label><input id="catalogName" placeholder="اسم المنتج"></div>
+  <div class="input-row">
+   <div class="field"><label for="catalogPrice">السعر الحالي (دج)</label><input id="catalogPrice" type="number" min="0" step="1"></div>
+   <div class="field"><label for="catalogUnit">الوحدة</label><select id="catalogUnit"><option>حبة</option><option>كغ</option><option>غ</option><option>لتر</option><option>علبة</option><option>ربطة</option><option>كيس</option></select></div>
+  </div>
+  <div class="field"><label for="catalogCategory">الفئة</label><select id="catalogCategory"></select></div>
+  <button class="primary-btn" id="saveProduct">حفظ المنتج</button>
+ </article>
+ <div id="catalogList" class="list-card empty">لم تضف منتجات إلى الدليل</div>
+</section>
+
+<section class="view" id="settingsView">
+ <div class="page-heading"><small>التحكم بالتطبيق</small><h1>الإعدادات</h1><p>بياناتك محفوظة على هذا الجهاز.</p></div>
+ <article class="panel">
+  <div class="setting-row"><div><b>المظهر</b><small>فاتح أو داكن</small></div><button class="secondary-btn compact" id="themeToggle">تبديل</button></div>
+  <div class="setting-row"><div><b>نسخة احتياطية</b><small>حفظ بياناتك في ملف JSON</small></div><button class="secondary-btn compact" id="backupBtn">نسخ احتياطي</button></div>
+  <div class="setting-row"><div><b>استعادة نسخة</b><small>استبدال بيانات هذا الجهاز بنسخة محفوظة</small></div><label class="secondary-btn compact file-label">استعادة<input type="file" id="restoreFile" accept="application/json"></label></div>
+  <div class="setting-row"><div><b>حذف بيانات التطبيق</b><small>لا يمكن التراجع عن هذه العملية</small></div><button class="danger-btn compact" id="resetBtn">مسح البيانات</button></div>
+ </article>
+ <p class="hint">الإصدار التأسيسي 0.2 — لا يتصل التطبيق بخادم ولا يرسل بياناتك إلى الإنترنت.</p>
+</section>
+</main>
+<nav class="bottom-nav">
+ <button data-view="home" class="nav-item active"><span>⌂</span><small>الرئيسية</small></button>
+ <button data-view="purchases" class="nav-item"><span>▤</span><small>المشتريات</small></button>
+ <button data-view="activity" class="nav-item"><span>↕</span><small>الحركات</small></button>
+ <button data-view="budget" class="nav-item"><span>◫</span><small>التخصيص</small></button>
+ <button data-view="settings" class="nav-item"><span>⚙</span><small>المزيد</small></button>
+</nav>
+<div id="toast" class="toast" role="status"></div>
+<script src="app.js"></script>
+</body></html>
