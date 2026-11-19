@@ -1,0 +1,12 @@
+title: "ميزانيتي"
+lang: "ar"
+url: "https://l7adj48.github.io"
+baseurl: "/MyFinance"
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - node_modules
+  - "*.gem"
+  - "*.gemspec"

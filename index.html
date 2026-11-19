@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#10130f"><meta name="description" content="ميزانيتي - إدارة الأموال والمشتريات">
 <link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
 <title>ميزانيتي</title>
+<!--CP-PWA--><link rel="icon" type="image/png" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><!--/CP-PWA-->
 </head>
 <body>
 <header class="topbar">
@@ -98,4 +99,5 @@
 </nav>
 <div id="toast" class="toast" role="status"></div>
 <script src="app.js"></script>
+<!--CP-PWA--><script>if("serviceWorker"in navigator)addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script><!--/CP-PWA-->
 </body></html>
