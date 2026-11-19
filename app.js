@@ -9,7 +9,7 @@ let state=load(), selectedCat="vegetables", draft=[];
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||{cash:0,transactions:[],products:[],budgets:[],salary:0,payday:18,categories:DEFAULT_CATS,theme:"dark"}}catch{return {cash:0,transactions:[],products:[],budgets:[],salary:0,payday:18,categories:DEFAULT_CATS,theme:"dark"}}}
 function save(){const {transactions,cash,...settings}=state;localStorage.setItem(KEY,JSON.stringify({...settings,transactions:[],cash:0}));renderAll()}
 function uiTransactions(){return ledgerTransactions.map(t=>({id:t.id,type:t.type==="reversal"?(t.entries.some(e=>e.account===ACCOUNT.CASH&&e.debit>0)?"income":"expense"):t.type,kind:t.metadata?.kind||t.metadata?.legacyKind||"",title:t.description||"حركة مالية",amount:t.amount,date:t.occurredAt,items:t.metadata?.items||t.metadata?.legacyItems||[]}))}
-async function refreshLedger(){ledgerTransactions=await readLedger(financeDB);state.transactions=uiTransactions();const b=calculateBalances(ledgerTransactions);state.cash=b.cash;renderAll()}
+async function refreshLedger(){ledgerTransactions=await readLedger(financeDB);state.transactions=uiTransactions().reverse();const b=calculateBalances(ledgerTransactions);state.cash=b.cash;renderAll()}
 async function initializeFinance(){
  financeDB=await openFinanceDB();
  const marker=await getMeta(financeDB,"legacy-migration-v1");
