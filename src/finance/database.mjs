@@ -38,3 +38,22 @@ export async function readLedger(db){
   return result.sort((a,b)=>a.occurredAt.localeCompare(b.occurredAt)||a.createdAt.localeCompare(b.createdAt));
 }
 export async function closeFinanceDB(db){db?.close();}
+
+export async function getMeta(db,key){
+  const tx=db.transaction(["meta"],"readonly");
+  return requestResult(tx.objectStore("meta").get(key));
+}
+export async function importAtomically(db,transactions,marker){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(["transactions","entries","meta"],"readwrite");
+    const ts=tx.objectStore("transactions"),es=tx.objectStore("entries"),meta=tx.objectStore("meta");
+    for(const transaction of transactions){
+      ts.add(transaction);
+      transaction.entries.forEach((e,index)=>es.add({id:transaction.id+":"+index,transactionId:transaction.id,...e}));
+    }
+    meta.put({key:"legacy-migration-v1",...marker});
+    tx.oncomplete=()=>resolve(true);
+    tx.onerror=()=>reject(tx.error||new Error("Atomic migration failed"));
+    tx.onabort=()=>reject(tx.error||new Error("Migration aborted; no partial data was committed"));
+  });
+}
