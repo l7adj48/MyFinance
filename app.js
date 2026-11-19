@@ -1,12 +1,34 @@
+import {buildTransaction,calculateBalances,sumAccount,ACCOUNT} from "./src/finance/ledger.mjs";
+import {openFinanceDB,postAtomically,readLedger,getMeta,importAtomically} from "./src/finance/database.mjs";
+import {migrateLegacyState} from "./src/finance/legacy-migration.mjs";
+let financeDB=null, ledgerTransactions=[];
 const $=id=>document.getElementById(id);
 const DEFAULT_CATS=[["vegetables","الخضر","♧"],["food","مواد غذائية","▦"],["bread","الخبز","♨"],["phone","فليكسي","▯"],["cosmetics","كوسميتيك","✧"],["home","المنزل","⌂"],["clothes","ملابس","♧"],["other","أخرى","•••"]];
 const KEY="myfinance.v02";
 let state=load(), selectedCat="vegetables", draft=[];
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||{cash:0,transactions:[],products:[],budgets:[],salary:0,payday:18,categories:DEFAULT_CATS,theme:"dark"}}catch{return {cash:0,transactions:[],products:[],budgets:[],salary:0,payday:18,categories:DEFAULT_CATS,theme:"dark"}}}
-function save(){localStorage.setItem(KEY,JSON.stringify(state));renderAll()}
+function save(){const {transactions,cash,...settings}=state;localStorage.setItem(KEY,JSON.stringify({...settings,transactions:[],cash:0}));renderAll()}
+function uiTransactions(){return ledgerTransactions.map(t=>({id:t.id,type:t.type==="reversal"?(t.entries.some(e=>e.account===ACCOUNT.CASH&&e.debit>0)?"income":"expense"):t.type,kind:t.metadata?.kind||t.metadata?.legacyKind||"",title:t.description||"حركة مالية",amount:t.amount,date:t.occurredAt,items:t.metadata?.items||t.metadata?.legacyItems||[]}))}
+async function refreshLedger(){ledgerTransactions=await readLedger(financeDB);state.transactions=uiTransactions();const b=calculateBalances(ledgerTransactions);state.cash=b.cash;renderAll()}
+async function initializeFinance(){
+ financeDB=await openFinanceDB();
+ const marker=await getMeta(financeDB,"legacy-migration-v1");
+ if(!marker){
+  const raw=localStorage.getItem(KEY),legacy=raw?JSON.parse(raw):null;
+  if(legacy&&Array.isArray(legacy.transactions)&&legacy.transactions.length){
+   const converted=migrateLegacyState(legacy);
+   if(!converted.cashComparable){toast("توجد بيانات قديمة غير متطابقة؛ احتُفظ بها دون ترحيل تلقائي. راجع النسخة الاحتياطية.");}
+   else{
+    localStorage.setItem("myfinance.legacy-backup.v1",raw);
+    await importAtomically(financeDB,converted.transactions,{completedAt:new Date().toISOString(),count:converted.transactions.length,legacyCash:converted.legacyCash});
+   }
+  }else await importAtomically(financeDB,[],{completedAt:new Date().toISOString(),count:0});
+ }
+ await refreshLedger();
+}
 function money(n){return Math.round(Number(n)||0).toLocaleString("fr-FR")+" دج"}
 function toast(s){let t=$("toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)}
-function dateKey(){return new Date().toISOString().slice(0,10)}
+function dateKey(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-") }
 function monthTx(){let m=dateKey().slice(0,7);return state.transactions.filter(t=>t.date.slice(0,7)===m)}
 function nav(name){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(name+"View").classList.add("active");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));window.scrollTo(0,0)}
 document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>nav(b.dataset.view)));
@@ -18,9 +40,9 @@ function calcDraft(){let q=Math.max(0,Number($("quantity").value)||0),p=Math.max
 $("productName").addEventListener("input",()=>{let p=state.products.find(x=>x.name.toLowerCase()===$("productName").value.trim().toLowerCase());if(p){$("unitPrice").value=p.price;calcDraft()}});
 $("addLine").onclick=()=>{let name=$("productName").value.trim(),q=Number($("quantity").value),p=Number($("unitPrice").value);if(!name||!(q>0)||!(p>=0)){toast("أدخل اسم المنتج والكمية والسعر");return}draft.push({name,qty:q,price:p,total:Math.round(q*p*100)/100,category:selectedCat});$("productName").value="";$("quantity").value=1;$("unitPrice").value="";calcDraft();renderDraft()};
 function renderDraft(){$("lineCount").textContent=draft.length+" منتجات";$("invoiceMeta").textContent=draft.length+" منتجات";$("invoiceLines").classList.toggle("empty",!draft.length);$("invoiceLines").innerHTML=draft.length?draft.map((x,i)=>`<div class="invoice-line"><div><b>${esc(x.name)}</b><small>${x.qty} × ${money(x.price)} · ${esc(state.categories.find(c=>c[0]===x.category)?.[1]||"أخرى")}</small></div><strong>${money(x.total)}</strong><button class="remove-line" data-remove="${i}">×</button></div>`).join(""):"لم تضف منتجات بعد";$("invoiceTotal").textContent=money(draft.reduce((s,x)=>s+x.total,0));$("confirmPurchase").disabled=!draft.length;document.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{draft.splice(+b.dataset.remove,1);renderDraft()})}
-$("confirmPurchase").onclick=()=>{if(!draft.length)return;let total=Math.round(draft.reduce((s,x)=>s+x.total,0)*100)/100;if(!confirm("تأكيد فاتورة بقيمة "+money(total)+"؟"))return;let tx={id:crypto.randomUUID(),type:"expense",kind:"purchase",title:"مشتريات ("+draft.length+" منتجات)",amount:total,date:dateKey(),items:draft.map(x=>({...x}))};state.transactions.unshift(tx);state.cash-=total;draft=[];renderDraft();save();toast("تم تسجيل الفاتورة وخصمها مرة واحدة")};
+$("confirmPurchase").onclick=async()=>{if(!draft.length||!financeDB)return;const total=draft.reduce((s,x)=>s+Math.round(x.total),0);if(!Number.isSafeInteger(total)||total<=0){toast("قيمة الفاتورة يجب أن تكون ديناراً صحيحاً موجباً");return}if(!confirm("تأكيد فاتورة بقيمة "+money(total)+"؟"))return;try{const tx=buildTransaction({id:crypto.randomUUID(),type:"expense",amount:total,occurredAt:dateKey(),description:"مشتريات ("+draft.length+" منتجات)",metadata:{kind:"purchase",items:draft.map(x=>({...x,total:Math.round(x.total)}))}});await postAtomically(financeDB,tx);draft=[];renderDraft();await refreshLedger();toast("تم تسجيل الفاتورة في الدفتر المالي")}catch(e){toast("تعذر حفظ الفاتورة: "+e.message)}};
 function renderTransactions(target,items){let el=$(target);el.classList.toggle("empty",!items.length);el.innerHTML=items.length?items.map(t=>`<div class="record"><div><b>${esc(t.title)}</b><small>${t.date} · ${t.kind==="purchase"?"فاتورة مشتريات":t.type==="income"?"دخل":"مصروف"}</small></div><span class="amount ${t.type==="income"?"positive":"negative"}">${t.type==="income"?"+":"−"}${money(t.amount)}</span></div>`).join(""):"لا توجد حركات بعد"}
-function renderHome(){let m=monthTx(),inc=m.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0),out=m.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);$("cashBalance").innerHTML=money(state.cash).replace(" دج","")+" <small>دج</small>";$("available").textContent=money(state.cash);$("incomeTotal").textContent=money(inc);$("expenseTotal").textContent=money(out);renderTransactions("recentList",state.transactions.slice(0,4))}
+function renderHome(){const month=dateKey().slice(0,7),items=ledgerTransactions.filter(t=>t.occurredAt.slice(0,7)===month),inc=-sumAccount(items,ACCOUNT.INCOME),out=sumAccount(items,ACCOUNT.EXPENSE)+sumAccount(items,ACCOUNT.REFUNDS);const b=calculateBalances(ledgerTransactions);$("cashBalance").innerHTML=money(b.cash).replace(" دج","")+" <small>دج</small>";$("available").textContent=money(b.available);$("incomeTotal").textContent=money(inc);$("expenseTotal").textContent=money(out);renderTransactions("recentList",state.transactions.slice(0,4))}
 function renderBudget(){ $("salary").value=state.salary||"";$("payday").value=state.payday||18;$("budgetList").innerHTML=state.budgets.map((b,i)=>`<div class="budget-row"><span>${esc(b.name)}</span><input type="number" min="0" value="${b.amount}" data-budget="${i}" aria-label="مبلغ ${esc(b.name)}"> <button class="remove-line" data-bremove="${i}">×</button></div>`).join("")||'<div class="empty">أضف فئات لتوزيع دخلك</div>';$("allocatedTotal").textContent=money(state.budgets.reduce((s,b)=>s+b.amount,0));document.querySelectorAll("[data-budget]").forEach(x=>x.onchange=()=>{state.budgets[+x.dataset.budget].amount=Math.max(0,Number(x.value)||0);save()});document.querySelectorAll("[data-bremove]").forEach(x=>x.onclick=()=>{state.budgets.splice(+x.dataset.bremove,1);save()})}
 $("saveIncome").onclick=()=>{state.salary=Math.max(0,Number($("salary").value)||0);state.payday=Math.min(31,Math.max(1,Number($("payday").value)||18));save();toast("تم حفظ إعداد الدخل")};
 $("addBudget").onclick=()=>{let name=prompt("اسم فئة التخصيص");if(!name?.trim())return;state.budgets.push({name:name.trim(),amount:0});save()};
@@ -34,4 +56,4 @@ $("restoreFile").onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let
 $("resetBtn").onclick=()=>{if(confirm("سيتم حذف جميع بيانات ميزانيتي من هذا الجهاز. هل أنت متأكد؟")){localStorage.removeItem(KEY);state=load();draft=[];renderDraft();save();toast("تم مسح البيانات")}};
 $("today").textContent=new Intl.DateTimeFormat("ar-DZ",{dateStyle:"full"}).format(new Date());
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
-renderAll();renderDraft();calcDraft();
+renderAll();renderDraft();calcDraft();initializeFinance().catch(e=>toast("تعذر فتح الدفتر المالي: "+e.message));
