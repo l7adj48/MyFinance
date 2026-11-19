@@ -39,6 +39,7 @@ export function createTransaction({id,type,amount,occurredAt,createdAt=new Date(
     return entry(e.account,d,c);
   });
   if (debits!==credits) throw new Error("Unbalanced transaction: debits must equal credits");
+  if (debits!==amount) throw new Error("Transaction amount must equal its total debit and credit");
   return Object.freeze({id,type,amount,occurredAt,createdAt,description:String(description),entries:Object.freeze(normalized),metadata:Object.freeze({...metadata}),status:"POSTED"});
 }
 export function buildTransaction(input) {
