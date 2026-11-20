@@ -19,7 +19,6 @@
   <div class="muted">الرصيد النقدي</div><div class="balance" id="cashBalance">0 <small>دج</small></div>
   <div class="balance-foot"><span>المتاح للإنفاق</span><b id="available">0 دج</b></div>
  </article>
- <article class="panel" style="margin-bottom:14px"><div class="section-head"><h2>تسجيل دخل</h2><span class="subtle">لا يُسجل إلا بعد الاستلام</span></div><div class="input-row"><div class="field"><label for="incomeTitle">المصدر</label><input id="incomeTitle" placeholder="مثال: الراتب"></div><div class="field"><label for="incomeAmount">المبلغ (دج)</label><input id="incomeAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="0"></div></div><button class="secondary-btn" id="addIncome">＋ تأكيد استلام الدخل</button></article>
  <div class="metric-grid">
   <article class="metric"><span>الدخل</span><b class="positive" id="incomeTotal">0 دج</b><small>هذا الشهر</small></article>
   <article class="metric"><span>المصروفات</span><b class="negative" id="expenseTotal">0 دج</b><small>هذا الشهر</small></article>
@@ -99,6 +98,6 @@
  <button data-view="settings" class="nav-item"><span>⚙</span><small>المزيد</small></button>
 </nav>
 <div id="toast" class="toast" role="status"></div>
-<script type="module" src="app.js"></script>
+<script src="app.js"></script>
 <!--CP-PWA--><script>if("serviceWorker"in navigator)addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});</script><!--/CP-PWA-->
 </body></html>
