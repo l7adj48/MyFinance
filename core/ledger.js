@@ -111,7 +111,15 @@ export function reverse(lg,txId,{reason,occurredOn,opId,source="ui"}={}){
  if(o.status==="REVERSED")throw new LedgerError("ALREADY_REVERSED","لا يجوز عكس الحركة مرتين");
  if(o.type===TX.REVERSAL)throw new LedgerError("CANNOT_REVERSE_REVERSAL","قيد العكس لا يُعكس؛ صحّح بترحيل جديد");
  if(!reason||!String(reason).trim())throw new LedgerError("REASON_REQUIRED","العكس يحتاج سبباً موثقاً");
- const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id);
+ const dependents=lg.transactions.filter(t=>t.status==="POSTED"&&(
+  (t.type===TX.REFUND&&t.originalTxId===o.id)||
+  (o.type===TX.DEBT_BORROWED&&t.debtId===o.debtId&&[TX.DEBT_PAYMENT,TX.DEBT_PRINCIPAL_PAYMENT,TX.DEBT_INTEREST,TX.DEBT_FORGIVEN].includes(t.type))||
+  (o.type===TX.RECEIVABLE_GIVEN&&t.partyId===o.partyId&&[TX.RECEIVABLE_COLLECTED,TX.RECEIVABLE_WRITEOFF].includes(t.type))
+ ));
+ if(dependents.length)throw new LedgerError("DEPENDENT_TRANSACTIONS",
+  "لا يمكن عكس الحركة قبل عكس العمليات التابعة لها",
+  {transactionIds:dependents.map(t=>t.id),types:dependents.map(t=>t.type)});
+ const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id); const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id);
  const mir=ol.map(l=>({account:l.account,sub:l.sub,side:l.side===D?C:D,amount:l.amount}));
  const tot=assertBalanced(mir);
  const when=occurredOn||todayLocal();assertISODate(when,"occurredOn");
@@ -128,9 +136,22 @@ export function reverse(lg,txId,{reason,occurredOn,opId,source="ui"}={}){
  lg.transactions.push(revTx);lg.entries.push(revEntry);lg.lines.push(...revLines);
  lg.audit.push({id:uid("au"),at,action:"REVERSE",entityType:"transaction",entityId:txId,opId,before,after:{...o},reason,source});
  return{txId:ntx,entryId:nje,reversedTxId:txId}}
-export function correct(lg,txId,newInput,{reason,opIdReverse,opIdNew}){
- const r=reverse(lg,txId,{reason,occurredOn:newInput.occurredOn,opId:opIdReverse});
- const p=post(lg,{...newInput,opId:opIdNew,correctionOf:r.reversedTxId,reason});
+export function correct(lg,txId,newInput,{reason,opIdReverse,opIdNew}={}){
+ if(!newInput||typeof newInput!=="object")throw new LedgerError("BAD_CORRECTION","بيانات التصحيح غير صالحة");
+ if(!reason||!String(reason).trim())throw new LedgerError("REASON_REQUIRED","التصحيح يحتاج سبباً موثقاً");
+ if(!opIdReverse||!opIdNew||opIdReverse===opIdNew)
+  throw new LedgerError("BAD_CORRECTION_OPS","التصحيح يحتاج معرفين مختلفين للعملية والعكس");
+ const candidate={...lg,
+  transactions:lg.transactions.map(x=>({...x})),
+  entries:lg.entries.map(x=>({...x})),
+  lines:lg.lines.map(x=>({...x})),
+  audit:lg.audit.map(x=>({...x}))};
+ const r=reverse(candidate,txId,{reason,occurredOn:newInput.occurredOn,opId:opIdReverse});
+ const p=post(candidate,{...newInput,opId:opIdNew,correctionOf:r.reversedTxId,reason});
+ lg.transactions=candidate.transactions;
+ lg.entries=candidate.entries;
+ lg.lines=candidate.lines;
+ lg.audit=candidate.audit;
  return{...p,reversalTxId:r.txId}}
 /* ── المستوى ب: الادخار. صفر قيود، صفر أثر على النقد ── */
 export function createGoal(lg,{id,name,target,startOn,dueOn,note=""}){
