@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ميزانيتي — اختبارات v4.0</title>
+<style>
+:root{--bg:#0D1420;--surface:#172338;--gold:#D6B779;--ok:#159A75;--bad:#D96C6C;--text:#E8EDF5;--muted:#8FA0B8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans Arabic",system-ui,sans-serif;padding:20px;line-height:1.7}
+main{max-width:900px;margin:auto}h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.banner{padding:16px 18px;border-radius:14px;background:var(--surface);border:1px solid #24344d;margin-bottom:16px}
+.banner.pass{border-color:var(--ok)}.banner.fail{border-color:var(--bad)}
+.banner h2{margin:0 0 6px;font-size:18px}
+.counts{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;margin-top:8px}
+.counts b{font-size:20px;display:block}
+.okc{color:var(--ok)}.badc{color:var(--bad)}.goldc{color:var(--gold)}
+.group{margin:22px 0 8px;color:var(--gold);font-size:15px;font-weight:700;border-bottom:1px solid #24344d;padding-bottom:6px}
+.t{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:10px;background:var(--surface);margin-bottom:6px;font-size:13px}
+.t .mark{flex:0 0 auto;font-weight:800;width:22px;text-align:center}
+.t.pass .mark{color:var(--ok)}.t.fail .mark{color:var(--bad)}
+.t .body{flex:1;min-width:0}
+.err{color:var(--bad);font-size:12px;margin-top:5px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;direction:ltr;text-align:left}
+.note{background:#1a2438;border:1px solid #2c3d5a;border-radius:12px;padding:14px 16px;font-size:13px;color:var(--muted);margin-top:22px}
+.note b{color:var(--text)}
+code{background:#0b1220;padding:2px 7px;border-radius:6px;direction:ltr;display:inline-block;font-size:12px}
+.fatal{background:#2a1a1e;border:1px solid var(--bad);color:#ffd9d9;padding:18px;border-radius:14px;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<h1>ميزانيتي — اختبارات المواصفات v4.0</h1>
+<div class="sub">المرحلة 2 و3 · المحرك المحاسبي والتقويم والسلامة</div>
+<div id="out"><div class="banner">جارٍ التشغيل…</div></div>
+<div class="note">
+<b>ما لا يغطيه هذا المشغّل — لم يُنفّذ ولا يُدّعى نجاحه:</b><br>
+11–15 و17–21 (الالتزامات والفواتير) للمرحلتين 6 و7.<br>
+29–31 (الترحيل والاستعادة على IndexedDB) تحتاج مجموعة تخزين منفصلة.<br>
+33–37 (الواجهة) للمرحلة 9. و<b>38</b> مغطى على مستوى تنسيق المال فقط.
+</div>
+</main>
+<script type="module">
+var out=document.getElementById("out");
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+if(location.protocol==="file:"){
+ out.innerHTML='<div class="fatal"><b>لا يمكن التشغيل بفتح الملف مباشرة.</b><br><br>'+
+ 'وحدات ES تخضع لـ CORS ولا تُحمّل من <code>file://</code>.<br>'+
+ 'شغّل خادماً من مجلد <code>MyFinance-MVP-0.2</code>:<br><br>'+
+ '<code>python3 -m http.server 8080</code><br>ثم افتح: '+
+ '<code>http://localhost:8080/tests/run.html</code><br><br>'+
+ '(هذا نفسه شرط تشغيل PWA و Service Worker.)</div>';
+}else{
+ try{
+  var mod=await import("./spec.test.js");
+  var results=[];
+  var T={
+   group:function(n){results.push({kind:"group",name:n})},
+   test:function(n,fn){try{fn();results.push({kind:"test",name:n,pass:true})}
+    catch(e){results.push({kind:"test",name:n,pass:false,error:(e&&e.stack)||String(e)})}},
+   eq:function(a,b,l){if(a!==b)throw new Error((l||"")+"\n  المتوقع: "+JSON.stringify(b)+"\n  الفعلي : "+JSON.stringify(a))},
+   ok:function(c,l){if(!c)throw new Error("شرط غير محقق: "+(l||""))},
+   throws:function(fn,code,l){var t=null;try{fn()}catch(e){t=e}
+    if(!t)throw new Error((l||"")+": كان المتوقع رمز "+code+" لكن لم يُرمَ شيء");
+    if(t.code!==code)throw new Error((l||"")+"\n  رمز متوقع: "+code+"\n  رمز فعلي : "+(t.code||"(بلا)")+"\n  الرسالة  : "+t.message)}
+  };
+  mod.register(T);
+  var tests=results.filter(function(r){return r.kind==="test"});
+  var passed=tests.filter(function(t){return t.pass}).length;
+  var failed=tests.length-passed;
+  var html='<div class="banner '+(failed?"fail":"pass")+'"><h2>'+
+   (failed?"✗ توجد اختبارات فاشلة":"✓ اجتازت كل الاختبارات")+'</h2><div class="counts">'+
+   '<span><b class="okc">'+passed+'</b>ناجح</span>'+
+   '<span><b class="badc">'+failed+'</b>فاشل</span>'+
+   '<span><b class="goldc">'+tests.length+'</b>المجموع</span></div></div>';
+  for(var i=0;i<results.length;i++){var r=results[i];
+   if(r.kind==="group"){html+='<div class="group">'+esc(r.name)+'</div>';continue}
+   html+='<div class="t '+(r.pass?"pass":"fail")+'"><span class="mark">'+(r.pass?"✓":"✗")+
+    '</span><div class="body">'+esc(r.name)+(r.pass?"":'<div class="err">'+esc(r.error)+'</div>')+'</div></div>'}
+  out.innerHTML=html;
+  document.title=(failed?"✗":"✓")+" "+passed+"/"+tests.length+" — ميزانيتي";
+ }catch(e){out.innerHTML='<div class="fatal"><b>فشل تحميل النواة أو الاختبارات:</b><br><br><code>'+
+  esc((e&&e.stack)||e)+'</code></div>'}
+}
+</script>
+</body>
+</html>
