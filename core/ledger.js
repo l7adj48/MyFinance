@@ -119,7 +119,7 @@ export function reverse(lg,txId,{reason,occurredOn,opId,source="ui"}={}){
  if(dependents.length)throw new LedgerError("DEPENDENT_TRANSACTIONS",
   "لا يمكن عكس الحركة قبل عكس العمليات التابعة لها",
   {transactionIds:dependents.map(t=>t.id),types:dependents.map(t=>t.type)});
- const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id); const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id);
+ const oe=lg.entries.find(e=>e.txId===txId),ol=lg.lines.filter(l=>l.entryId===oe.id);
  const mir=ol.map(l=>({account:l.account,sub:l.sub,side:l.side===D?C:D,amount:l.amount}));
  const tot=assertBalanced(mir);
  const when=occurredOn||todayLocal();assertISODate(when,"occurredOn");

@@ -3,11 +3,17 @@ export const CURRENCY="DZD",SCALE=2,QTY_SCALE=1000;
 export class MoneyError extends Error{constructor(c,m){super(m);this.name="MoneyError";this.code=c}}
 export const isMoney=v=>Number.isSafeInteger(v);
 export function assertMoney(v,l="amount"){if(!Number.isSafeInteger(v))throw new MoneyError("NOT_INTEGER_MINOR",l+": يجب عدد صحيح بالسنتيم، وصل "+String(v));return v}
+export function normalizeNumberText(raw){
+ let s=String(raw).trim().replace(/[\s\u00A0\u202F_']/g,"");
+ const lc=s.lastIndexOf(","),ld=s.lastIndexOf(".");
+ if(lc>=0&&ld>=0){s=lc>ld?s.replace(/\./g,"").replace(",","."):s.replace(/,/g,"")}
+ else if(lc>=0){const p=s.split(",");s=(p.length===2&&/^\d{1,2}$/.test(p[1]))?p[0]+"."+p[1]:s.replace(/,/g,"")}
+ return s}
 export function parseMoney(input,opts={}){
  const{allowRounding=false,allowNegative=true}=opts;
  if(input===null||input===undefined||input==="")throw new MoneyError("EMPTY","المبلغ فارغ");
  if(typeof input==="number"&&!Number.isFinite(input))throw new MoneyError("NOT_FINITE","مبلغ غير منتهٍ");
- let s=String(input).trim().replace(/[\s\u00A0\u202F,_']/g,"");
+ let s=normalizeNumberText(input);
  if(!s||s==="-")throw new MoneyError("EMPTY","المبلغ فارغ");
  let neg=false;
  if(s[0]==="-"){neg=true;s=s.slice(1)}else if(s[0]==="+")s=s.slice(1);
@@ -33,7 +39,7 @@ export function formatMoney(c,o={}){
 }
 export function parseQty(i){
  if(i===null||i===undefined||i==="")throw new MoneyError("EMPTY_QTY","الكمية فارغة");
- const s=String(i).trim().replace(/[\s\u00A0\u202F,]/g,"");
+ let s=String(i).trim().replace(/[\s\u00A0\u202F]/g,"");s=(s.indexOf(".")<0&&s.split(",").length===2)?s.replace(",","."):s.replace(/,/g,"");
  if(!/^\d+(\.\d{1,3})?$/.test(s))throw new MoneyError("BAD_QTY","كمية غير صالحة (3 منازل عشرية كحد أقصى): "+i);
  const dot=s.indexOf("."),ip=dot<0?s:s.slice(0,dot),fp=((dot<0?"":s.slice(dot+1))+"000").slice(0,3);
  const q=Number(ip)*1000+Number(fp);

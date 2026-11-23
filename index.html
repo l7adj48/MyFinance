@@ -354,12 +354,16 @@ background:linear-gradient(120deg,#D6B77914,#159A7510);border:1px solid var(--go
 <script>
 (function(){"use strict";try{if(localStorage.getItem("mz-purge")!=="v7"){localStorage.setItem("mz-purge","v7");if(window.caches)caches.keys().then(function(k){for(var i=0;i<k.length;i++)caches.delete(k[i])});if(navigator.serviceWorker)navigator.serviceWorker.getRegistrations().then(function(r){for(var i=0;i<r.length;i++)r[i].unregister()});}}catch(e){}
 /* ══════════════ المال: سنتيم صحيح ══════════════ */
+function normNum(raw){var s=String(raw).trim().replace(/[\s\u00A0\u202F_']/g,""),lc=s.lastIndexOf(","),ld=s.lastIndexOf(".");
+ if(lc>=0&&ld>=0){s=lc>ld?s.replace(/\./g,"").replace(",","."):s.replace(/,/g,"")}
+ else if(lc>=0){var p=s.split(",");s=(p.length===2&&/^\d{1,2}$/.test(p[1]))?p[0]+"."+p[1]:s.replace(/,/g,"")}
+ return s}
 var M={
  is:function(v){return Number.isSafeInteger(v)},
  assert:function(v,l){if(!Number.isSafeInteger(v))throw E("NOT_INTEGER",(l||"المبلغ")+" يجب أن يكون عدداً صحيحاً بالسنتيم");return v},
  parse:function(input,opt){opt=opt||{};
   if(input===null||input===undefined||input==="")throw E("EMPTY","المبلغ فارغ");
-  var s=String(input).trim().replace(/[\s\u00A0\u202F,_']/g,"");
+  var s=normNum(input);
   if(!s||s==="-")throw E("EMPTY","المبلغ فارغ");
   var neg=false;if(s[0]==="-"){neg=true;s=s.slice(1)}else if(s[0]==="+")s=s.slice(1);
   if(!/^\d+(\.\d+)?$/.test(s))throw E("BAD_FORMAT","صيغة مبلغ غير صالحة: "+input);
@@ -374,7 +378,7 @@ var M={
   return(neg?"−":"")+maj+((min||o.alwaysMinor)?"."+String(min).padStart(2,"0"):"")+(o.cur?" دج":"")},
  short:function(c){var a=Math.abs(c);if(a>=100000000)return(c/100000000).toFixed(1)+"م";
   if(a>=100000)return Math.round(c/100000)+"ك";return M.fmt(c)},
- qty:function(i){var s=String(i==null?"":i).trim().replace(/[\s,]/g,"");
+ qty:function(i){var s=String(i==null?"":i).trim().replace(/[\s\u00A0\u202F]/g,"");s=(s.indexOf(".")<0&&s.split(",").length===2)?s.replace(",","."):s.replace(/,/g,"");
   if(!/^\d+(\.\d{1,3})?$/.test(s))throw E("BAD_QTY","كمية غير صالحة: "+i);
   var d=s.indexOf("."),ip=d<0?s:s.slice(0,d),fp=((d<0?"":s.slice(d+1))+"000").slice(0,3);
   return Number(ip)*1000+Number(fp)},
@@ -479,6 +483,25 @@ function newLedger(){return{
    ["fun","ترفيه","🎬","#BA68C8"],["tax","ضرائب ورسوم","🧾","#90A4AE"],["other","أخرى","📦","#8FA0B8"]],
   sources:[["salary","راتب","💼"],["extra","عمل إضافي","⚡"],["gift","هدية","🎁"],["sale","بيع ممتلكات","🏷"],
    ["side","نشاط جانبي","🛠"],["other","أخرى","📥"]]}}}
+
+/* Normalize incomplete or legacy local records before rendering.
+   Configuration defaults only; never create financial/sample transactions. */
+function normalizeLedger(input){
+ var base=newLedger(),lg=(input&&typeof input==="object"&&!Array.isArray(input))?input:base;
+ ["transactions","entries","lines","goals","savings","budgets","commitments","occurrences",
+  "parties","items","prices","invoices","audit"].forEach(function(k){if(!Array.isArray(lg[k]))lg[k]=[]});
+ var old=(lg.settings&&typeof lg.settings==="object"&&!Array.isArray(lg.settings))?lg.settings:{};
+ lg.settings=Object.assign({},base.settings,old);
+ if(!Array.isArray(lg.settings.categories))lg.settings.categories=base.settings.categories;
+ if(!Array.isArray(lg.settings.sources))lg.settings.sources=base.settings.sources;
+ if(typeof lg.settings.demo!=="boolean")lg.settings.demo=false;
+ if(lg.settings.theme!=="light"&&lg.settings.theme!=="dark")lg.settings.theme="dark";
+ if(!Number.isFinite(Number(lg.settings.weekStart)))lg.settings.weekStart=6;
+ var payday=Number(lg.settings.payday);
+ if(!Number.isFinite(payday)||payday<1||payday>31)lg.settings.payday=18;
+ if(!["today","week","month","lastMonth","cycle","year","all"].includes(lg.settings.period))lg.settings.period="month";
+ return lg;
+}
 function partyBal(lg,pid,acc){var s=0;for(var i=0;i<lg.lines.length;i++){var l=lg.lines[i];
  if(l.account===acc&&l.sub===pid)s+=l.side===ACC[acc].n?l.amount:-l.amount}return s}
 function validate(lg,t){
@@ -503,6 +526,8 @@ function validate(lg,t){
    if(x.type==="REFUND"&&x.originalTxId===o.id&&x.status==="POSTED")done+=x.amount}
   if(t.amount>o.amount-done)throw E("REFUND_EXCEEDS","الاسترجاع يتجاوز المتبقي ("+M.fmt(o.amount-done)+" دج)")}
  if(t.type==="COLLECT"&&t.amount>partyBal(lg,t.partyId,"RECEIVABLE"))throw E("OVERCOLLECT","التحصيل يتجاوز الحق المتبقي");
+ if(t.type==="FORGIVE"&&t.amount>partyBal(lg,t.partyId,"DEBT"))throw E("FORGIVE_EXCEEDS","الإعفاء يتجاوز الدين المتبقي");
+ if(t.type==="WRITEOFF"&&t.amount>partyBal(lg,t.partyId,"RECEIVABLE"))throw E("WRITEOFF_EXCEEDS","الإعدام يتجاوز الحق المتبقي");
 }
 function post(lg,input){
  var t={};for(var k in input)t[k]=input[k];
@@ -533,6 +558,8 @@ function reverse(lg,txId,o){o=o||{};
  if(t.status==="REVERSED")throw E("ALREADY","لا يجوز العكس مرتين");
  if(t.type==="REVERSAL")throw E("REV_REV","قيد العكس لا يُعكس");
  if(!o.reason||!String(o.reason).trim())throw E("REASON","العكس يحتاج سبباً");
+ var dep=lg.transactions.filter(function(x){return x.status==="POSTED"&&((x.type==="REFUND"&&x.originalTxId===txId)||(t.type==="BORROW"&&(x.type==="DEBT_PAY"||x.type==="FORGIVE")&&x.partyId===t.partyId)||(t.type==="LEND"&&(x.type==="COLLECT"||x.type==="WRITEOFF")&&x.partyId===t.partyId))});
+ if(dep.length)throw E("DEPENDENT","لا يمكن عكس الحركة قبل عكس العمليات التابعة لها — اعكس التابعة أولا");
  var e=null;for(var q=0;q<lg.entries.length;q++)if(lg.entries[q].txId===txId)e=lg.entries[q];
  var mir=lg.lines.filter(function(l){return l.entryId===e.id}).map(function(l){
   return{a:l.account,b:l.sub,s:l.side===DB?CR:DB,v:l.amount}});
@@ -643,28 +670,59 @@ function materialize(lg,horizon){var today=D.today(),to=D.add(today,horizon||45)
   if(o.status==="PAID"||o.status==="SKIPPED")return;
   var c=null;for(var i=0;i<lg.commitments.length;i++)if(lg.commitments[i].id===o.commitmentId)c=lg.commitments[i];
   var grace=(c&&c.graceDays)||0;
+  if(c&&c.status!=="ACTIVE"&&o.paid===0){o.status="PAUSED";return;}
   o.status=o.paid>0?(o.paid>=o.amount?"PAID":"PARTIAL"):(D.add(o.dueOn,grace)<today?"OVERDUE":(o.dueOn<=today?"DUE":"SCHEDULED"))});
  return made}
 /* ══════════════ التخزين ══════════════ */
 var DBNAME="mizanati-v4-single",DBVER=1,STORE="state",KEY="main",_db=null;
+var _fallbackStorage=false,_memoryState=null;
+function fallbackGet(){
+ try{
+  var raw=window.localStorage.getItem(DBNAME+":"+KEY);
+  if(raw!==null)return JSON.parse(raw);
+ }catch(e){}
+ return _memoryState;
+}
+function fallbackSet(v){
+ _memoryState=v;
+ try{window.localStorage.setItem(DBNAME+":"+KEY,JSON.stringify(v))}catch(e){}
+ return true;
+}
+function fallbackDel(){
+ _memoryState=null;
+ try{window.localStorage.removeItem(DBNAME+":"+KEY)}catch(e){}
+ return true;
+}
 function openDB(){if(_db)return Promise.resolve(_db);
  return new Promise(function(res,rej){
-  if(!window.indexedDB){rej(new Error("المتصفح لا يدعم IndexedDB"));return}
+  if(!window.indexedDB){rej(new Error("IndexedDB غير متاح في هذه البيئة"));return}
   var r=indexedDB.open(DBNAME,DBVER);
   r.onupgradeneeded=function(){var d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE)};
   r.onsuccess=function(){_db=r.result;_db.onversionchange=function(){_db.close();_db=null};res(_db)};
   r.onerror=function(){rej(r.error||new Error("فشل فتح القاعدة"))};
   r.onblocked=function(){rej(new Error("تبويب آخر يمنع الترقية"))}})}
-function dbGet(){return openDB().then(function(d){return new Promise(function(res,rej){
- var tx=d.transaction(STORE,"readonly"),rq=tx.objectStore(STORE).get(KEY);
- rq.onsuccess=function(){res(rq.result)};rq.onerror=function(){rej(rq.error)}})})}
-function dbSet(v){return openDB().then(function(d){return new Promise(function(res,rej){
- var tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).put(v,KEY);
- tx.oncomplete=function(){res(true)};tx.onerror=function(){rej(tx.error||new Error("فشل الحفظ"))};
- tx.onabort=function(){rej(tx.error||new Error("أُجهض الحفظ"))}})})}
-function dbDel(){return openDB().then(function(d){return new Promise(function(res,rej){
- var tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(KEY);
- tx.oncomplete=function(){res(true)};tx.onerror=function(){rej(tx.error)}})})}
+function dbGet(){
+ if(_fallbackStorage)return Promise.resolve(fallbackGet());
+ return openDB().then(function(d){return new Promise(function(res,rej){
+  var tx=d.transaction(STORE,"readonly"),rq=tx.objectStore(STORE).get(KEY);
+  rq.onsuccess=function(){res(rq.result)};rq.onerror=function(){rej(rq.error)}})})
+ .catch(function(){_fallbackStorage=true;return fallbackGet()});
+}
+function dbSet(v){
+ if(_fallbackStorage)return Promise.resolve(fallbackSet(v));
+ return openDB().then(function(d){return new Promise(function(res,rej){
+  var tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).put(v,KEY);
+  tx.oncomplete=function(){res(true)};tx.onerror=function(){rej(tx.error||new Error("فشل الحفظ"))};
+  tx.onabort=function(){rej(tx.error||new Error("أُجهض الحفظ"))}})})
+ .catch(function(){_fallbackStorage=true;return fallbackSet(v)});
+}
+function dbDel(){
+ if(_fallbackStorage)return Promise.resolve(fallbackDel());
+ return openDB().then(function(d){return new Promise(function(res,rej){
+  var tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(KEY);
+  tx.oncomplete=function(){res(true)};tx.onerror=function(){rej(tx.error)}})})
+ .catch(function(){_fallbackStorage=true;return fallbackDel()});
+}
 /* ══════════════ بيانات الاستكشاف ══════════════ */
 function seed(){var lg=newLedger(),t=D.today(),op=0;
  function O(){return"seed-"+(++op)}
@@ -881,6 +939,7 @@ function donut(es,total){var R=64,r=42,cx=80,cy=80,a=-Math.PI/2;
 /* ══════════════ العرض ══════════════ */
 function render(){
  try{
+  LG=normalizeLedger(LG);
   $("demoBar").hidden=!LG.settings.demo;
   document.body.classList.toggle("light",LG.settings.theme==="light");
   $("themeIco").textContent=LG.settings.theme==="light"?"☀":"◐";
@@ -904,8 +963,7 @@ function periodChips(){var cur=ui.custom?"custom":(ui.period||LG.settings.period
   '<button class="chip'+(cur==="custom"?" on":"")+'" data-act="customRange">⚙ مخصص</button></div>'}
 function emptyState(t,s,btn,act){return '<div class="empty"><span class="ei">◌</span><b>'+esc(t)+'</b>'+esc(s)+
  (btn?'<div style="margin-top:14px"><button class="btn p sm" data-act="'+act+'">'+esc(btn)+'</button></div>':"")+'</div>'}
-function budgetStatus(){var r=D.mrange(D.mkey(today()));
- return LG.budgets.map(function(b){var sp=0;
+function budgetStatus(){return LG.budgets.map(function(b){var r=(b.periodStart&&b.periodEnd)?{start:b.periodStart,end:b.periodEnd}:D.mrange(D.mkey(today()));var sp=0;
   for(var i=0;i<LG.lines.length;i++){var l=LG.lines[i];
    if(l.account!=="EXPENSE"||l.sub!==b.categoryId||l.occurredOn<r.start||l.occurredOn>r.end)continue;
    sp+=l.side===DB?l.amount:-l.amount}
@@ -1612,7 +1670,8 @@ function fBudget(id){var b=id?LG.budgets.filter(function(x){return x.id===id})[0
   fields:[{k:"categoryId",label:"التصنيف",type:"pick",val:b?b.categoryId:"food",opts:catOpts()},
    {k:"amount",label:"الحد الشهري (دج)",type:"money",required:true,min:1,val:b?M.fmt(b.amount):""},
    {k:"name",label:"الاسم",val:b?b.name:"",ph:"يُشتق من التصنيف إن تُرك"}],
-  onSubmit:function(v){return commit(function(lg){
+  onSubmit:function(v){if(!b){var rr=D.mrange(D.mkey(today()));var dup=LG.budgets.some(function(x){return x.categoryId===v.categoryId&&x.periodStart===rr.start});if(dup)return{errors:{categoryId:"ميزانية موجودة لهذا التصنيف في هذا الشهر — عدّلها بدل إنشاء ثانية"}};}
+   return commit(function(lg){
    if(b){var t=lg.budgets.filter(function(x){return x.id===id})[0];t.amount=v.amount;t.categoryId=v.categoryId;t.name=v.name||cat(v.categoryId)[1]}
    else{var r=D.mrange(D.mkey(today()));
     lg.budgets.push({id:uid("bd"),name:v.name||cat(v.categoryId)[1],categoryId:v.categoryId,amount:v.amount,
@@ -1625,14 +1684,16 @@ function fCommit(id){var c=id?LG.commitments.filter(function(x){return x.id===id
     hint:"إن لم يوجد اليوم في شهر قصير يُستخدم آخر يوم فيه"},
    {k:"categoryId",label:"التصنيف",type:"pick",val:c?c.categoryId:"home",opts:catOpts()},
    {k:"startOn",label:"تاريخ البداية",type:"date",val:c?c.startOn:today(),required:true},
+   {k:"endOn",label:"تاريخ النهاية (اختياري)",type:"date",val:c?c.endOn||"":""},
    {k:"graceDays",label:"فترة السماح (أيام)",type:"number",val:c?c.graceDays:3},
    {k:"payeeId",label:"المستفيد",type:"select",val:c?c.payeeId||"":"",opts:[["","— بدون —"]].concat(partyOpts())}],
   onSubmit:function(v){var day=Math.min(31,Math.max(1,Math.round(v.anchorDay)));
    return commit(function(lg){
-    if(c){var t=lg.commitments.filter(function(x){return x.id===id})[0];
-     t.name=v.name;t.amount=v.amount;t.anchorDay=day;t.categoryId=v.categoryId;t.graceDays=v.graceDays;t.payeeId=v.payeeId||null;
-     lg.occurrences.forEach(function(o){if(o.commitmentId===id&&o.paid===0&&o.dueOn>=today())o.amount=v.amount})}
-    else lg.commitments.push({id:uid("cm"),name:v.name,amount:v.amount,anchorDay:day,startOn:v.startOn,endOn:null,
+    if(v.endOn&&v.endOn<v.startOn)return{errors:{endOn:"النهاية يجب أن تكون بعد البداية"}};
+    if(c){var t=lg.commitments.filter(function(x){return x.id===id})[0];var oldAmt=t.amount;var oldEnd=t.endOn;t.name=v.name;t.amount=v.amount;t.anchorDay=day;t.categoryId=v.categoryId;t.graceDays=v.graceDays;t.payeeId=v.payeeId||null;t.endOn=v.endOn||null;
+     lg.occurrences.forEach(function(o){if(o.commitmentId===id&&o.paid===0&&o.dueOn>=today())o.amount=v.amount});
+     lg.audit.push({id:uid("au"),at:D.now(),action:"COMMITMENT_EDIT",entity:"commitment",entityId:id,opId:opId(),before:{amount:oldAmt,endOn:oldEnd},after:{amount:v.amount,endOn:v.endOn||null},reason:"تعديل التزام — القادمة فقط"})}
+    else lg.commitments.push({id:uid("cm"),name:v.name,amount:v.amount,anchorDay:day,startOn:v.startOn,endOn:v.endOn||null,
      categoryId:v.categoryId,payeeId:v.payeeId||null,graceDays:v.graceDays,status:"ACTIVE"});
     materialize(lg,45)},c?"تم التعديل":"تم إنشاء الالتزام")}})}
 function fOccPay(oid){var o=LG.occurrences.filter(function(x){return x.id===oid})[0];
@@ -1671,7 +1732,7 @@ function fInvoice(){ui.inv=[];
    '<div class="tot"><span>الإجمالي · '+ui.inv.length+' عنصر</span><b>'+N(tot)+'</b></div>';
   Array.prototype.forEach.call(el.querySelectorAll("[data-rm]"),function(b){
    b.onclick=function(){ui.inv.splice(+b.dataset.rm,1);draw()}})}
- modal("فاتورة تفصيلية","تنتج مصروفاً واحداً فقط مرتبطاً بها",
+ modal("فاتورة تفصيلية","تُقسَّم حسب التصنيف: مصروف واحد لكل تصنيف، والإجمالي هو مجموعها — لا مصروف لكل عنصر.",
   '<div class="fld"><label>المتجر</label><input id="ivStore" value="سوق المدينة"></div>'+
   '<div class="fld"><label>التاريخ</label><input id="ivDate" type="date" value="'+today()+'"></div>'+
   '<div class="fld"><label>المادة</label><select id="ivItem">'+LG.items.map(function(i){
@@ -1682,7 +1743,7 @@ function fInvoice(){ui.inv=[];
   '<button class="btn" data-act="closeAll">إلغاء</button><button class="btn p" id="ivSave">تأكيد الفاتورة</button>');
  draw();
  function sync(){var it=LG.items.filter(function(x){return x.id===$("ivItem").value})[0];if(!it)return;
-  var ps=LG.prices.filter(function(p){return p.itemId===it.id}).sort(function(a,b){return a.on<b.on?1:-1});
+  var ps=(function(){var st=document.getElementById("ivStore").value||"";var a=LG.prices.filter(function(p){return p.itemId===it.id});var ss=a.filter(function(p){return p.store===st&&(p.source==="فاتورة"||p.source==="شراء فعلي")}).sort(function(x,y){return x.on<y.on?1:-1});var pu=a.filter(function(p){return p.source==="فاتورة"||p.source==="شراء فعلي"}).sort(function(x,y){return x.on<y.on?1:-1});var al=a.slice().sort(function(x,y){return x.on<y.on?1:-1});var seen={};var out=[];ss.concat(pu).concat(al).forEach(function(p){if(!seen[p.id]){seen[p.id]=1;out.push(p)}});return out;})();
   if(ps[0])$("ivPrice").value=M.fmt(ps[0].amount)}
  $("ivItem").onchange=sync;sync();
  $("ivAdd").onclick=function(){var it=LG.items.filter(function(x){return x.id===$("ivItem").value})[0];
@@ -1698,21 +1759,25 @@ function fInvoice(){ui.inv=[];
   var lines=ui.inv.slice(),total=M.sum(lines.map(function(l){return l.total}));
   closeAll();
   commit(function(lg){var ivId=uid("iv");
-   var r=post(lg,{type:"EXPENSE",amount:total,categoryId:lines[0].categoryId,occurredOn:on,opId:opId(),
-    title:"فاتورة "+(store||"مشتريات"),invoiceId:ivId,note:lines.length+" عناصر"});
-   lg.invoices.push({id:ivId,txId:r.txId,store:store,on:on,detailed:true,lines:lines,total:total});
+   var groups={};lines.forEach(function(l){(groups[l.categoryId]=groups[l.categoryId]||[]).push(l)});
+   var txIds=[];Object.keys(groups).forEach(function(cat){var g=groups[cat],sub=M.sum(g.map(function(x){return x.total}));
+    var r=post(lg,{type:"EXPENSE",amount:sub,categoryId:cat,occurredOn:on,opId:opId(),title:"فاتورة "+(store||"مشتريات")+" — "+cat,invoiceId:ivId,note:g.length+" عناصر · تصنيف "+cat});txIds.push(r.txId)});
+   lg.invoices.push({id:ivId,txId:txIds[0],txIds:txIds,store:store,on:on,detailed:true,lines:lines,total:total});
    lines.forEach(function(l){lg.prices.push({id:uid("pr"),itemId:l.itemId,store:store,amount:l.price,
     unit:l.unit,on:on,source:"فاتورة"})})},"تم تسجيل الفاتورة "+F(total))}}
 function fTxEdit(id){var t=LG.transactions.filter(function(x){return x.id===id})[0];
+ if(t&&t.invoiceId){toast("فاتورة — اعكس الفاتورة كاملة وأعد إنشاءها، لا تعدّل سطرا واحدا","err");return;}
  var fields=[{k:"amount",label:"المبلغ (دج)",type:"money",required:true,min:1,val:M.fmt(t.amount)},
   {k:"occurredOn",label:"تاريخ الوقوع",type:"date",val:t.occurredOn,required:true},
   {k:"title",label:"الوصف",val:t.title},
   {k:"reason",label:"سبب التصحيح (إلزامي)",type:"textarea",required:true,ph:"خطأ في المبلغ"}];
  if(t.type==="EXPENSE")fields.push({k:"categoryId",label:"التصنيف",type:"pick",val:t.categoryId,opts:catOpts()});
+ if(t.type==="DEBT_PAY"){fields.push({k:"principal",label:"أصل (دج)",type:"money",required:true,min:0,val:M.fmt(t.principal||0)});fields.push({k:"fees",label:"رسوم (دج)",type:"money",required:true,min:0,val:M.fmt(t.fees||0)});}
  form({title:"تعديل الحركة",sub:"يُنشأ قيد عكس ثم قيد جديد — الأثر القديم محفوظ",ok:"ترحيل التصحيح",fields:fields,
-  onSubmit:function(v){return commit(function(lg){correct(lg,id,{type:t.type,amount:v.amount,occurredOn:v.occurredOn,
+  onSubmit:function(v){if(t.type==="DEBT_PAY"&&v.principal+v.fees!==v.amount)return{errors:{fees:"أصل + رسوم يجب أن يساوي الإجمالي"}};
+   return commit(function(lg){correct(lg,id,{type:t.type,amount:v.amount,occurredOn:v.occurredOn,
    title:v.title,categoryId:v.categoryId||t.categoryId,sourceId:t.sourceId,partyId:t.partyId,
-   originalTxId:t.originalTxId,goalId:t.goalId,note:t.note},{reason:v.reason,opId:opId()})},"تم التصحيح مع حفظ الأثر")}})}
+   originalTxId:t.originalTxId,goalId:t.goalId,note:t.note,principal:t.type==="DEBT_PAY"?v.principal:t.principal,fees:t.type==="DEBT_PAY"?v.fees:t.fees},{reason:v.reason,opId:opId()})},"تم التصحيح مع حفظ الأثر")}})}
 function fReverse(ids){var arr=Array.isArray(ids)?ids:[ids];
  form({title:arr.length>1?"عكس "+arr.length+" حركة":"عكس الحركة",sub:"لا حذف نهائي — قيد مرآة موثّق والأصل محفوظ",ok:"عكس",
   fields:[{k:"reason",label:"السبب (إلزامي)",type:"textarea",required:true,ph:"إدخال مكرر"},
@@ -1897,7 +1962,7 @@ function runChecks(){var out=$("checksOut");if(!out)return;
    if(!c.ok)throw new Error(c.problems.slice(0,3).join(" · "))});
   var pass=R.filter(function(r){return r.p}).length;
   out.innerHTML='<div class="alert '+(pass===R.length?"ok":"bad")+'"><span class="ai">'+(pass===R.length?"✓":"✕")+
-   '</span><div><b>'+pass+" / "+R.length+" اختبار ناجح</b><small>نُفّذت الآن في متصفحك</small></div></div>'+
+   '</span><div><b>'+pass+" / "+R.length+' اختبار ناجح</b><small>نُفّذت الآن في متصفحك</small></div></div>'+
    R.map(function(r){return'<div class="check '+(r.p?"p":"f")+'"><span class="cm">'+(r.p?"✓":"✕")+'</span><span class="cn">'+esc(r.n)+
     (r.p?"":'<br><small style="color:var(--coral2)">'+esc(r.e)+'</small>')+'</span></div>'}).join("")},40)}
 /* ══════════════ الإجراءات ══════════════ */
@@ -1951,9 +2016,8 @@ var ACT={
  cmEdit:function(d){fCommit(d.id)},
  cmToggle:function(d){commit(function(lg){var c=lg.commitments.filter(function(x){return x.id===d.id})[0];
   c.status=c.status==="ACTIVE"?"PAUSED":"ACTIVE";
-  if(c.status!=="ACTIVE")lg.occurrences=lg.occurrences.filter(function(o){
-   return o.commitmentId!==d.id||o.paid>0||o.dueOn<today()});
-  materialize(lg,45)},"تم تحديث الالتزام")},
+  lg.audit.push({id:uid("au"),at:D.now(),action:c.status==="PAUSED"?"COMMITMENT_PAUSED":"COMMITMENT_RESUMED",entity:"commitment",entityId:d.id,opId:opId(),before:{status:c.status==="PAUSED"?"ACTIVE":"PAUSED"},after:{status:c.status},reason:"إيقاف/تفعيل من الواجهة"});
+  materialize(lg,45)},"تم تحديث الالتزام — الاستحقاقات المستقبلية محفوظة كـ PAUSED لا محذوفة")},
  budgetNew:function(){fBudget()},
  budgetEdit:function(d){fBudget(d.id)},
  budgetDel:function(d){commit(function(lg){lg.budgets=lg.budgets.filter(function(b){return b.id!==d.id})},"تم حذف الميزانية",true)},
@@ -2043,10 +2107,9 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden&&LG)
 setInterval(function(){if(LG&&!document.hidden&&route==="home")render()},60000);
 /* ══════════════ الإقلاع ══════════════ */
 dbGet().then(function(saved){
- if(saved&&saved.transactions){LG=saved;
-  if(!LG.settings)LG.settings=newLedger().settings;
-  materialize(LG,45);return dbSet(LG)}
- LG=seed();return dbSet(LG)}).then(function(){render();
+ LG=normalizeLedger(saved);
+ materialize(LG,45);
+ return dbSet(LG)}).then(function(){render();
  var chk=integrity(LG);if(!chk.ok)toast("تنبيه سلامة: "+chk.problems[0],"err");
  if("serviceWorker" in navigator&&location.protocol.indexOf("http")===0)
   navigator.serviceWorker.register("./sw.js").catch(function(){})},

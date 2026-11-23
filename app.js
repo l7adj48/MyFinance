@@ -2,12 +2,16 @@
    المال سنتيم صحيح. التاريخ نص محلي. كل رصيد مشتق من قيود متوازنة. */
 (function(G){"use strict";
 /* ══════════ 1. المال ══════════ */
+function normNum(raw){var s=String(raw).trim().replace(/[\s\u00A0\u202F_']/g,""),lc=s.lastIndexOf(","),ld=s.lastIndexOf(".");
+ if(lc>=0&&ld>=0){s=lc>ld?s.replace(/\./g,"").replace(",","."):s.replace(/,/g,"")}
+ else if(lc>=0){var p=s.split(",");s=(p.length===2&&/^\d{1,2}$/.test(p[1]))?p[0]+"."+p[1]:s.replace(/,/g,"")}
+ return s}
 var M={
  is:function(v){return Number.isSafeInteger(v)},
  as:function(v,l){if(!Number.isSafeInteger(v))throw E("NOT_INT",(l||"المبلغ")+" يجب أن يكون عدداً صحيحاً بالسنتيم");return v},
  parse:function(inp,o){o=o||{};
   if(inp==null||inp==="")throw E("EMPTY","المبلغ فارغ");
-  var s=String(inp).trim().replace(/[\s\u00A0\u202F,_']/g,"");
+  var s=normNum(inp);
   if(!s||s==="-")throw E("EMPTY","المبلغ فارغ");
   var neg=false;if(s[0]==="-"){neg=true;s=s.slice(1)}else if(s[0]==="+")s=s.slice(1);
   if(!/^\d+(\.\d+)?$/.test(s))throw E("BAD_FMT","صيغة مبلغ غير صالحة: "+inp);
@@ -1407,7 +1411,7 @@ function checks(){var out=$("cko");if(!out)return;
  t("سلامة دفترك الحالي",function(){var c=integrity(LG);if(!c.ok)throw new Error(c.problems.join(" · "))});
  var ps=R.filter(function(r){return r.p}).length;
  out.innerHTML='<div class="al '+(ps===R.length?"ok":"bad")+'"><span class="ai">'+(ps===R.length?"✓":"✕")+
- '</span><div><b>'+ps+" / "+R.length+" اختبار ناجح</b><small>نُفّذت الآن في متصفحك على المحرك الفعلي</small></div></div>'+
+ '</span><div><b>'+ps+" / "+R.length+' اختبار ناجح</b><small>نُفّذت الآن في متصفحك على المحرك الفعلي</small></div></div>'+
  R.map(function(r){return'<div class="ck '+(r.p?"p":"f")+'"><span class="cm">'+(r.p?"✓":"✕")+'</span><span class="cn">'+esc(r.n)+
  (r.p?"":'<br><small style="color:var(--cor2)">'+esc(r.e)+'</small>')+'</span></div>'}).join("")},40)}
 /* ══════════ 14. الإجراءات ══════════ */

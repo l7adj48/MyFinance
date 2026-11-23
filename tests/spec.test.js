@@ -127,7 +127,7 @@ export function register(T){
  test("22 و23. حركة قديمة في فترة وقوعها لا تسجيلها",()=>{const lg=createLedger();
   post(lg,{type:TX.INCOME,amount:D(50000),sourceId:"s",occurredOn:"2026-11-01",opId:op()});
   post(lg,{type:TX.EXPENSE,amount:D(7000),categoryId:"food",occurredOn:"2026-09-15",opId:op()});
-  eq(positions(lg,"2026-09-30").cash,D(43000),"نهاية سبتمبر");eq(positions(lg,"2026-10-31").cash,D(43000),"أكتوبر");
+  eq(positions(lg,"2026-09-30").cash,D(-7000),"نهاية سبتمبر");eq(positions(lg,"2026-10-31").cash,D(-7000),"أكتوبر");
   eq(positions(lg).cash,D(43000),"الحالي");
   ok(lg.lines.some(l=>l.occurredOn>="2026-09-01"&&l.occurredOn<="2026-09-30"),"في فترتها")});
  test("24. فلاتر الشهر والسنة عبر الحدود",()=>{const d=resolvePeriod("thisMonth","2026-12-31");
